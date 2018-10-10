@@ -14,6 +14,9 @@ rootbranch="master"
 # create tag for a specific commit
 # git tag -a v1.2 9fceb02
 
+# remove all git tags
+# git tag | xargs git tag -d
+
 # -----------------------------------------
 
 # Algorithm proposal
@@ -31,14 +34,17 @@ rootbranch="master"
 # $arg3 -> parent tag
 get_tag_name() {
 
+    #echo "get_tag_name called with $@"
+    gtn_tag=""
+
     if [ $1 == $rootbranch ]; then
         echo "v0.$2"
     else
-        tag="$3-$1"
+        gtn_tag="$3-$1"
 
-        if [ ${tag} ]; then
-            tag="$tag-$2"
-            echo $tag
+        if [ ${gtn_tag} ]; then
+            gtn_tag="$gtn_tag-$2"
+            echo $gtn_tag
         fi
     fi
 }
@@ -48,19 +54,32 @@ get_tag_name() {
 # $arg1 -> branch name
 tag_branch() {
     echo "Tagging branch [$1]"
-    commits=$(git log --walk-reflogs $1 --pretty=format:"%h" --no-patch); commits=($commits)
+    commits=$(git log --walk-reflogs $1 --pretty=format:"%h" --no-patch);
+    echo "commits: $commits"
+    commits=($commits)
     version=1
     parenttag=""
 
     if [ "$1" != "$rootbranch" ]; then
         parenttag=$(git describe --tags ${commits[${#commits[@]}-1]})
+        echo "parenttag=$parenttag"
     fi
 
     for ((i=${#commits[@]}-1; i>=0; i--)); do
+
+        echo "tagging commit ${commits[$i]}"
+        tag=""
+        echo "for-tag: $tag"
+        echo "running: git describe --tags ${commits[$i]}"
         tag=$(git describe --tags ${commits[$i]})
+        echo "for-tag-after-describe: $tag"
 
         if [ -z ${tag} ]; then
-            tag=get_tag_name $1 ${version} ${parenttag}
+            echo "existing tag not found - proceeding with tagging"
+            echo "running: get_tag_name $1 ${version} ${parenttag}"
+            tag=$(get_tag_name $1 ${version} ${parenttag})
+            echo "tag=$tag"
+            echo "running: git tag -a ${tag} -m 'auto-generated' ${commits[$i]}"
             git tag -a -m "auto-generated" ${tag} ${commits[$i]}
         else
             echo "Commit has been tagged already - ${tag} - ${commits[$i]}"
@@ -75,8 +94,9 @@ tag_branch $rootbranch
 branches=$(git for-each-ref --format='%(refname:short)' refs/heads)
 branchlist=($branches)
 
-for ((i=${#branchlist[@]}-1; i>=0; i--)); do
-    if [ ${branchlist[$i]} != $rootbranch ]; then
-        tag_branch ${branchlist[$i]}
-    fi
-done
+#for ((i=${#branchlist[@]}-1; i>=0; i--)); do
+#    if [ "${branchlist[$i]}" != "$rootbranch" ]; then
+#    echo "calling tag_branch with branchname ${branchlist[$i]}"
+#        tag_branch ${branchlist[$i]}
+#    fi
+#done
