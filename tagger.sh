@@ -80,7 +80,7 @@ tag_branch() {
             tag=$(get_tag_name $1 ${version} ${parenttag})
             echo "tag=$tag"
             echo "running: git tag -a ${tag} -m 'auto-generated' ${commits[$i]}"
-            git tag -a -m "auto-generated" ${tag} ${commits[$i]}
+            git tag -a ${tag} -m "auto-generated" ${commits[$i]}
         else
             echo "Commit has been tagged already - ${tag} - ${commits[$i]}"
         fi
