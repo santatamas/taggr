@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-rootbranch="master"
+rootbranch="develop"
 
 # list commit hashes from a branch - newest first!
 # git log --walk-reflogs master --pretty=format:"%h" --no-patch
@@ -40,7 +40,11 @@ get_tag_name() {
     if [ $1 == $rootbranch ]; then
         echo "v0.$2"
     else
-        gtn_tag="$3-$1"
+        if [ "$3" != "" ]; then
+            gtn_tag="$3-$1"
+        else
+            gtn_tag="$1"
+        fi
 
         if [ ${gtn_tag} ]; then
             gtn_tag="$gtn_tag-$2"
@@ -57,11 +61,12 @@ tag_branch() {
     commits=$(git log --walk-reflogs $1 --pretty=format:"%h" --no-patch);
     echo "commits: $commits"
     commits=($commits)
+
     version=1
     parenttag=""
 
     if [ "$1" != "$rootbranch" ]; then
-        parenttag=$(git describe --tags ${commits[${#commits[@]}-1]})
+        parenttag=$(git tag --points-at ${commits[${#commits[@]}-1]})
         echo "parenttag=$parenttag"
     fi
 
@@ -70,9 +75,9 @@ tag_branch() {
         echo "tagging commit ${commits[$i]}"
         tag=""
         echo "for-tag: $tag"
-        echo "running: git describe --tags ${commits[$i]}"
-        tag=$(git describe --tags ${commits[$i]})
-        echo "for-tag-after-describe: $tag"
+        echo "running: git tag --points-at ${commits[$i]}"
+        tag=$(git tag --points-at ${commits[$i]})
+        echo "for-tag: $tag"
 
         if [ -z ${tag} ]; then
             echo "existing tag not found - proceeding with tagging"
@@ -94,9 +99,10 @@ tag_branch $rootbranch
 branches=$(git for-each-ref --format='%(refname:short)' refs/heads)
 branchlist=($branches)
 
-#for ((i=${#branchlist[@]}-1; i>=0; i--)); do
-#    if [ "${branchlist[$i]}" != "$rootbranch" ]; then
-#    echo "calling tag_branch with branchname ${branchlist[$i]}"
-#        tag_branch ${branchlist[$i]}
-#    fi
-#done
+for ((cnt=0; cnt<${#branchlist[@]}-1; cnt++)); do
+    if [ "${branchlist[$cnt]}" != "$rootbranch" ]; then
+        echo "calling tag_branch with branchname ${branchlist[$cnt]}"
+        tag_branch ${branchlist[$cnt]}
+    fi
+    echo "main for loop end"
+done
