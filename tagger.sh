@@ -2,50 +2,30 @@
 
 rootbranch="develop"
 
-# list commit hashes from a branch - newest first!
-# git log --walk-reflogs master --pretty=format:"%h" --no-patch
+# ===========================================
+# Method declarations
+# ===========================================
 
-# show branch names only
-# git for-each-ref --format='%(refname:short)' refs/heads
-
-# list tags of a specific commit (with hash)
-# git describe --tags 6dddc48
-
-# create tag for a specific commit
-# git tag -a v1.2 9fceb02
-
-# remove all git tags
-# git tag | xargs git tag -d
-
-# -----------------------------------------
-
-# Algorithm proposal
-# - list all commits from {root-branch} - DONE
-# - iterate through the hashes, and tag them with v0.{version} (in reverse) - DONE
-
-# - list all branches, and exclude {root-branch}
-# - iterate through them and:
-#   - list all commits
-#   - get the tag of the _first_ commit in history
-#   - tag the rest with {first-commit-tag}-{branch-name}-{version} (in reverse)
-
-# $arg1 -> branch name
-# $arg2 -> version
-# $arg3 -> parent tag
+# Generate proper tag name with our versioning scheme
+# $arg1 | branch name
+# $arg2 | version
+# $arg3 | parent tag
 get_tag_name() {
 
-    #echo "get_tag_name called with $@"
     gtn_tag=""
 
+    # If root, return the standard version -> (v0.1)
     if [ $1 == $rootbranch ]; then
         echo "v0.$2"
     else
+        # if we have a parent tag -> (v0.1-CID-3333)
         if [ "$3" != "" ]; then
             gtn_tag="$3-$1"
         else
-            gtn_tag="$1"
+            gtn_tag="$1" # this should not happen
         fi
 
+        # Apply version -> (v0.1-CID-3333-1)
         if [ ${gtn_tag} ]; then
             gtn_tag="$gtn_tag-$2"
             echo $gtn_tag
@@ -53,38 +33,29 @@ get_tag_name() {
     fi
 }
 
-
 # Tag all commits in a branch with version numbers
-# $arg1 -> branch name
+# $arg1 | branch name
 tag_branch() {
     echo "Tagging branch [$1]"
-    commits=$(git log --walk-reflogs $1 --pretty=format:"%h" --no-patch);
-    echo "commits: $commits"
-    commits=($commits)
 
+    # Get an array of commits belonging to the target branch
+    commits=$(git log --walk-reflogs $1 --pretty=format:"%h" --no-patch); commits=($commits) # convert string -> array
     version=1
     parenttag=""
 
+    # If it's not the root branch, get the parent commit's tag - we'll use it as a prefix
     if [ "$1" != "$rootbranch" ]; then
         parenttag=$(git tag --points-at ${commits[${#commits[@]}-1]})
-        echo "parenttag=$parenttag"
     fi
 
+    # Iterate through the commits, and tag them
     for ((i=${#commits[@]}-1; i>=0; i--)); do
-
-        echo "tagging commit ${commits[$i]}"
         tag=""
-        echo "for-tag: $tag"
-        echo "running: git tag --points-at ${commits[$i]}"
         tag=$(git tag --points-at ${commits[$i]})
-        echo "for-tag: $tag"
 
         if [ -z ${tag} ]; then
             echo "existing tag not found - proceeding with tagging"
-            echo "running: get_tag_name $1 ${version} ${parenttag}"
             tag=$(get_tag_name $1 ${version} ${parenttag})
-            echo "tag=$tag"
-            echo "running: git tag -a ${tag} -m 'auto-generated' ${commits[$i]}"
             git tag -a ${tag} -m "auto-generated" ${commits[$i]}
         else
             echo "Commit has been tagged already - ${tag} - ${commits[$i]}"
@@ -93,16 +64,17 @@ tag_branch() {
     done
 }
 
+# ===========================================
+# Tagging script
+# ===========================================
+
+# Run on main branch
 tag_branch $rootbranch
 
-# ================ Tagging child branches =================
-branches=$(git for-each-ref --format='%(refname:short)' refs/heads)
-branchlist=($branches)
-
+# Run on all other branches, except root
+branches=$(git for-each-ref --format='%(refname:short)' refs/heads); branchlist=($branches) # convert string -> array
 for ((cnt=0; cnt<${#branchlist[@]}-1; cnt++)); do
     if [ "${branchlist[$cnt]}" != "$rootbranch" ]; then
-        echo "calling tag_branch with branchname ${branchlist[$cnt]}"
         tag_branch ${branchlist[$cnt]}
     fi
-    echo "main for loop end"
 done
